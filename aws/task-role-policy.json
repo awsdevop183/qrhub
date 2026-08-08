@@ -1,0 +1,11 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AppLevelPermissionsGoHere",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter"],
+      "Resource": "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/qrhub/*"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "family": "qrhub-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "runtimePlatform": { "cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX" },
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/qrhubExecutionRole",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/qrhubTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "qrhub",
+      "image": "<ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/qrhub:v1",
+      "essential": true,
+      "portMappings": [
+        { "containerPort": 3000, "protocol": "tcp", "name": "http", "appProtocol": "http" }
+      ],
+      "environment": [
+        { "name": "APP_VERSION", "value": "v1" },
+        { "name": "BANNER_MESSAGE", "value": "Running on AWS ECS Fargate - ap-south-1" }
+      ],
+      "secrets": [
+        {
+          "name": "QRHUB_SIGNING_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:<ACCOUNT_ID>:secret:qrhub/signing-key:signingkey::"
+        }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/qrhub",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

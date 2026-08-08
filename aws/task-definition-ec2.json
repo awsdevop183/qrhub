@@ -1,0 +1,43 @@
+{
+  "family": "qrhub-ec2-task",
+  "networkMode": "bridge",
+  "requiresCompatibilities": ["EC2"],
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/qrhubExecutionRole",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/qrhubTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "qrhub",
+      "image": "<ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/qrhub:v1",
+      "essential": true,
+      "cpu": 256,
+      "memoryReservation": 256,
+      "memory": 512,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "hostPort": 0,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "APP_VERSION", "value": "v1" },
+        { "name": "BANNER_MESSAGE", "value": "ECS on EC2 launch type - ap-south-1" }
+      ],
+      "secrets": [
+        {
+          "name": "QRHUB_SIGNING_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:<ACCOUNT_ID>:secret:qrhub/signing-key:signingkey::"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/qrhub-ec2",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QRHub — running on AWS ECS</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B1120; --panel:#151E32; --line:#25314B;
+    --ink:#F1F5F9; --muted:#94A3B8; --accent:#38BDF8; --ok:#4ADE80;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:'Space Grotesk',system-ui,sans-serif;
+       display:flex;justify-content:center;padding:32px 20px 64px}
+  .wrap{width:100%;max-width:760px}
+  h1{font-size:30px;margin:0 0 4px;letter-spacing:-.5px}
+  .sub{color:var(--muted);margin:0 0 24px;font-size:15px}
+  .card{background:var(--panel);border:1px solid var(--line);
+        border-radius:14px;padding:22px;margin-bottom:18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+  .stat .k{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+  .stat .v{font-family:'JetBrains Mono',monospace;font-size:16px;margin-top:5px;color:var(--accent)}
+  .pill{display:inline-flex;align-items:center;gap:7px;background:#052E1B;color:var(--ok);
+        border:1px solid #14532D;border-radius:999px;padding:5px 13px;
+        font-family:'JetBrains Mono',monospace;font-size:13px;margin-bottom:16px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:8px}
+  textarea{width:100%;min-height:88px;background:#0B1120;border:1px solid var(--line);
+           border-radius:10px;color:var(--ink);padding:13px;resize:vertical;
+           font-family:'JetBrains Mono',monospace;font-size:14px}
+  textarea:focus{outline:none;border-color:var(--accent)}
+  button{margin-top:13px;background:var(--accent);color:#06202E;border:0;border-radius:10px;
+         padding:12px 22px;font-family:inherit;font-weight:700;font-size:15px;cursor:pointer}
+  button:hover{filter:brightness(1.08)}
+  button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line);font-weight:500}
+  #out{text-align:center;margin-top:20px}
+  #out img{border-radius:12px;max-width:300px;width:100%}
+  .served{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-top:11px}
+  .served.link{word-break:break-all;color:var(--accent);font-size:11px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  h2{font-size:15px;margin:0 0 14px;color:var(--muted);text-transform:uppercase;letter-spacing:1.1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>QRHub</h1>
+  <p class="sub" id="banner">Loading…</p>
+
+  <div class="card">
+    <h2>Which container answered you?</h2>
+    <div class="pill"><span class="dot"></span><span id="ver">—</span></div>
+    <div class="grid">
+      <div class="stat"><div class="k">Task ID</div><div class="v" id="task">—</div></div>
+      <div class="stat"><div class="k">Availability Zone</div><div class="v" id="az">—</div></div>
+      <div class="stat"><div class="k">Cluster</div><div class="v" id="cluster">—</div></div>
+      <div class="stat"><div class="k">CPU / Memory</div><div class="v" id="size">—</div></div>
+      <div class="stat"><div class="k">Links signed</div><div class="v" id="signed">—</div></div>
+      <div class="stat"><div class="k">Tampered rejected</div><div class="v" id="tamper">—</div></div>
+      <div class="stat"><div class="k">Requests served</div><div class="v" id="reqs">—</div></div>
+    </div>
+    <div class="row" style="margin-top:18px">
+      <button class="ghost" onclick="refresh()">Refresh (hit the ALB again)</button>
+      <button class="ghost" onclick="burn()">Send CPU load</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Generate a signed QR code</h2>
+    <label for="text">Text or URL</label>
+    <textarea id="text">https://youtube.com/@awsandevops</textarea>
+    <button onclick="generate()">Generate</button>
+    <div id="out"></div>
+  </div>
+</div>
+
+<script>
+async function refresh(){
+  const r = await fetch('/api/whoami');
+  const d = await r.json();
+  banner.textContent = d.banner;
+  ver.textContent = d.version;
+  task.textContent = d.taskId;
+  az.textContent = d.availabilityZone;
+  cluster.textContent = d.cluster;
+  size.textContent = d.cpu + ' vCPU / ' + d.memory + ' MB';
+  signed.textContent = d.linksSigned;
+  tamper.textContent = d.tamperRejects;
+  reqs.textContent = d.requestsServed;
+}
+
+async function generate(){
+  out.innerHTML = '<p class="served">Generating…</p>';
+  const r = await fetch('/api/qr', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ text: text.value })
+  });
+  const d = await r.json();
+  if (d.error) { out.innerHTML = '<p class="served">'+d.error+'</p>'; return; }
+  lastToken = d.token;
+  out.innerHTML = '<img src="'+d.image+'">'
+    + '<p class="served">signed by task '+d.servedBy+' ('+d.version+')</p>'
+    + '<p class="served link">'+d.link+'</p>'
+    + '<div class="row" style="justify-content:center">'
+    + '<button class="ghost" onclick="follow()">Follow the link</button>'
+    + '<button class="ghost" onclick="tamperTest()">Tamper with it</button></div>';
+}
+
+let lastToken = null;
+
+function follow(){
+  window.open('/s/' + lastToken, '_blank');
+}
+
+// Flip one character of the signature and watch the server reject it
+function tamperTest(){
+  const [payload, sig] = lastToken.split('.');
+  const broken = sig[0] === 'A' ? 'B' + sig.slice(1) : 'A' + sig.slice(1);
+  window.open('/s/' + payload + '.' + broken, '_blank');
+}
+
+async function burn(){
+  for (let i=0;i<25;i++) fetch('/api/load?ms=3000');
+  alert('25 CPU-burn requests sent. Watch the ECS service scale out.');
+}
+
+refresh();
+setInterval(refresh, 4000);
+</script>
+</body>
+</html>
